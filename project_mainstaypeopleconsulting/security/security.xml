@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Engagement Manager - appears in existing Project dropdown -->
+    <record id="group_engagement_manager" model="res.groups">
+        <field name="name">Engagement Manager</field>
+        <field name="comment">Full access to all projects and tasks they are admin of.</field>
+        <field name="sequence">30</field>
+        <field name="privilege_id" ref="project.res_groups_privilege_project"/>
+        <field name="implied_ids" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
+
+    <!-- Project Manager - appears in existing Project dropdown -->
+    <record id="group_project_manager_custom" model="res.groups">
+        <field name="name">Project Manager</field>
+        <field name="comment">Full access to all projects and tasks they are admin of.</field>
+        <field name="sequence">40</field>
+        <field name="privilege_id" ref="project.res_groups_privilege_project"/>
+        <field name="implied_ids" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
+
+    <!-- Project Consultant - appears in existing Project dropdown -->
+    <record id="group_project_consultant" model="res.groups">
+        <field name="name">Project Consultant</field>
+        <field name="comment">Can only see and edit tasks assigned to them.</field>
+        <field name="sequence">50</field>
+        <field name="privilege_id" ref="project.res_groups_privilege_project"/>
+        <field name="implied_ids" eval="[(4, ref('project.group_project_user'))]"/>
+    </record>
+
+</odoo>
