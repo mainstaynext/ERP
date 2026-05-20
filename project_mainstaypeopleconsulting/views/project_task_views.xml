@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Form view -->
+    <record id="view_task_form2_inherit_subtask" model="ir.ui.view">
+        <field name="name">project.task.form.inherit.subtask</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_form2"/>
+        <field name="arch" type="xml">
+
+            <field name="priority" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
+
+            <!-- Hide standard Odoo state widget -->
+            <xpath expr="//field[@name='state'][@widget='project_task_state_selection']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Hide standard deadline for ALL tasks -->
+            <field name="date_deadline" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
+
+            <!-- Insert planned dates before deadline -->
+            <xpath expr="//field[@name='date_deadline']" position="before">
+                <group name="subtask_dates" string="Dates">
+                    <field name="planned_start_date" string="Planned Start Date"/>
+                    <field name="planned_end_date" string="Planned End Date"/>
+                </group>
+            </xpath>
+
+            <!-- Actual Start and End Dates -->
+            <xpath expr="//field[@name='planned_end_date']" position="after">
+                <field name="actual_start_date" string="Actual Start Date"/>
+                <field name="actual_end_date" string="Actual End Date"/>
+            </xpath>
+
+            <!-- Subtask Stage as styled status-bar-like button dropdown -->
+            <xpath expr="//field[@name='stage_id']" position="after">
+
+                <field name="allowed_subtask_stage_ids" invisible="1"/>
+
+                <!-- Hidden field for data binding -->
+                <field name="subtask_stage_id" invisible="1"
+                       domain="[('id','in',allowed_subtask_stage_ids)]"
+                       options="{'no_create': True, 'no_open': True}"/>
+
+                <!-- Visible styled dropdown - only on subtasks -->
+                <div invisible="parent_id == False"
+                     class="d-flex align-items-center gap-3 mb-3 mt-1">
+                    <span class="fw-semibold"
+                          style="font-size:13px; color:#555;">
+                        Subtask Stage
+                    </span>
+                    <div style="position: relative; display: inline-block;">
+                        <field name="subtask_stage_id"
+                               domain="[('id','in',allowed_subtask_stage_ids)]"
+                               options="{'no_create': True, 'no_open': True}"
+                               placeholder="Select Stage"
+                               widget="many2one"
+                               style="appearance: none;
+                                      -webkit-appearance: none;
+                                      background-color: #6d4567;
+                                      color: white;
+                                      border: none;
+                                      border-radius: 20px;
+                                      padding: 6px 20px;
+                                      font-size: 13px;
+                                      font-weight: 600;
+                                      min-width: 180px;
+                                      cursor: pointer;
+                                      box-shadow: 0 2px 6px rgba(0,0,0,0.2);"/>
+                    </div>
+                </div>
+
+            </xpath>
+
+            <!-- Buttons -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_submit_for_completion"
+                        type="object"
+                        string="Submit for Completion"
+                        class="oe_stat_button"
+                        style="background:#6d4567 !important;
+                               color:white !important;
+                               border:none !important;
+                               border-radius:10px !important;
+                               padding:12px 22px !important;
+                               font-size:18px !important;
+                               font-weight:600 !important;"
+                        invisible="parent_id == False or subtask_stage_id.name in ['Completed','Submit for Completion']"
+                        groups="base.group_user"/>
+                <button name="action_approve_completion"
+                        type="object"
+                        string="Approve"
+                        class="oe_stat_button"
+                        style="background:#198754 !important;
+                               color:white !important;
+                               border:none !important;
+                               border-radius:10px !important;"
+                        invisible="parent_id == False or subtask_stage_id.name != 'Submit for Completion'"
+                        groups="project.group_project_manager"/>
+                <button name="action_reject_completion"
+                        type="object"
+                        string="Reject"
+                        class="oe_stat_button"
+                        style="background:#dc3545 !important;
+                               color:white !important;
+                               border:none !important;
+                               border-radius:10px !important;"
+                        invisible="parent_id == False or subtask_stage_id.name != 'Submit for Completion'"
+                        groups="project.group_project_manager"/>
+            </xpath>
+
+            <!-- Owner, Deliverables, Client Responsibilities -->
+            <xpath expr="//field[@name='user_ids']" position="after">
+                <field name="owner" string="Owner"/>
+                <field name="deliverables" string="Deliverables"/>
+                <field name="client_responsibilities" string="Client Responsibilities"/>
+            </xpath>
+
+            <!-- Approval Details Tab -->
+            <xpath expr="//notebook" position="inside">
+                <page name="subtask_approval"
+                      string="Approval Details"
+                      invisible="parent_id == False">
+                    <group>
+                        <field name="submission_comment" readonly="1"/>
+                        <field name="submission_document_link" readonly="1" widget="url"/>
+                        <field name="submitted_by" readonly="1"/>
+                        <field name="submitted_on" readonly="1"/>
+                    </group>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- List view -->
+    <record id="view_project_task_list_inherit_subtask" model="ir.ui.view">
+        <field name="name">project.task.list.inherit.subtask</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_tree2"/>
+        <field name="arch" type="xml">
+
+            <field name="date_deadline" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
+
+            <field name="stage_id" position="after">
+                <field name="subtask_stage_id" string="Subtask Stage" optional="show"/>
+                <field name="submitted_by" string="Submitted By" optional="hide"/>
+            </field>
+
+        </field>
+    </record>
+
+    <!-- Search filter -->
+    <record id="view_task_filter_inherit_subtask" model="ir.ui.view">
+        <field name="name">project.task.filter.inherit.subtask</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_search_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='my_tasks']" position="after">
+                <filter name="waiting_approval"
+                        string="Waiting for Approval"
+                        domain="[('subtask_stage_id.name', '=', 'Submit for Completion')]"
+                        groups="project.group_project_manager"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Approval Queue List -->
+    <record id="view_subtask_approval_queue_list" model="ir.ui.view">
+        <field name="name">subtask.approval.queue.list</field>
+        <field name="model">project.task</field>
+        <field name="arch" type="xml">
+            <list string="Subtask Approval Queue">
+                <field name="name" string="Subtask"/>
+                <field name="parent_id" string="Parent Task"/>
+                <field name="project_id" string="Project"/>
+                <field name="subtask_stage_id" string="Stage"/>
+                <field name="submitted_by" string="Submitted By"/>
+                <field name="submitted_on" string="Submitted On"/>
+                <field name="submission_comment" string="Comment" optional="hide"/>
+                <field name="submission_document_link" string="Document Link" widget="url" optional="hide"/>
+                <button name="action_approve_completion" type="object" string="Approve" class="text-success"/>
+                <button name="action_reject_completion" type="object" string="Reject" class="text-danger"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_subtask_approval_queue" model="ir.actions.act_window">
+        <field name="name">Subtask Approval Queue</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_subtask_approval_queue_list"/>
+        <field name="domain">[('parent_id', '!=', False), ('subtask_stage_id.name', '=', 'Submit for Completion')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No subtasks are waiting for approval.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_subtask_approval_queue"
+              name="Subtask Approval Queue"
+              parent="project.menu_main_pm"
+              action="action_subtask_approval_queue"
+              sequence="15"
+              groups="project.group_project_manager"/>
+
+</odoo>
