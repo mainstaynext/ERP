@@ -116,6 +116,7 @@
             <!-- Owner, Deliverables, Client Responsibilities -->
             <xpath expr="//field[@name='user_ids']" position="after">
                 <field name="owner" string="Owner"/>
+                <field name="module_name" string="Module" options='{"no_open": True}'/>
                 <field name="deliverables" string="Deliverables"/>
                 <field name="client_responsibilities" string="Client Responsibilities"/>
             </xpath>
@@ -150,6 +151,7 @@
 
             <field name="stage_id" position="after">
                 <field name="subtask_stage_id" string="Subtask Stage" optional="show"/>
+                <field name="module_name" string="Module" optional="show"/>
                 <field name="submitted_by" string="Submitted By" optional="hide"/>
             </field>
 
