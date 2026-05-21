@@ -114,6 +114,10 @@ class ProjectTask(models.Model):
     actual_end_date = fields.Date(string='Actual End Date')
 
     owner = fields.Char(string='Owner')
+    module_name = fields.Many2one(
+        'project.task.module',
+        string='Module',
+    )
     deliverables = fields.Char(string='Deliverables')
     client_responsibilities = fields.Char(string='Client Responsibilities')
 
