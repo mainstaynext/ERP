@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Project Consultant: can only READ/WRITE tasks assigned to them.
+        We do NOT touch Odoo's built-in rules — they still apply to PM and EM.
+    -->
+    <record id="rule_consultant_task_assigned" model="ir.rule">
+        <field name="name">Project Consultant: Assigned Tasks Only</field>
+        <field name="model_id" ref="project.model_project_task"/>
+        <field name="groups" eval="[(4, ref('project_mainstaypeopleconsulting.group_project_consultant'))]"/>
+        <field name="domain_force">
+            [('user_ids', 'in', [user.id])]
+        </field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!--
+        Project Consultant: can only see projects where they have at least one assigned task.
+    -->
+    <record id="rule_consultant_project_assigned" model="ir.rule">
+        <field name="name">Project Consultant: Relevant Projects Only</field>
+        <field name="model_id" ref="project.model_project_project"/>
+        <field name="groups" eval="[(4, ref('project_mainstaypeopleconsulting.group_project_consultant'))]"/>
+        <field name="domain_force">
+            [('task_ids.user_ids', 'in', [user.id])]
+        </field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!--
+        Engagement Manager and Project Manager: full access to all tasks and projects.
+        No domain restriction needed — handled by implied_ids → group_project_manager.
+    -->
+
+</odoo>
