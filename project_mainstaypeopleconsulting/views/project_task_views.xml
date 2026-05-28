@@ -139,11 +139,17 @@
     </record>
 
     <!-- List view -->
+        <!-- List view -->
     <record id="view_project_task_list_inherit_subtask" model="ir.ui.view">
         <field name="name">project.task.list.inherit.subtask</field>
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_tree2"/>
         <field name="arch" type="xml">
+
+            <!-- Add decoration to list rows: red background for delayed tasks -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="decoration-danger">delay_status == 'delayed'</attribute>
+            </xpath>
 
             <field name="date_deadline" position="attributes">
                 <attribute name="invisible">1</attribute>
@@ -152,7 +158,13 @@
             <field name="stage_id" position="after">
                 <field name="subtask_stage_id" string="Subtask Stage" optional="show"/>
                 <field name="module_name" string="Module" optional="show"/>
+                <field name="planned_start_date" string="Planned Start Date" optional="show"/>
+                <field name="planned_end_date" string="Planned End Date" optional="show"/>
+                <field name="actual_start_date" string="Actual Start Date" optional="show"/>
+                <field name="actual_end_date" string="Actual End Date" optional="show"/>
                 <field name="submitted_by" string="Submitted By" optional="hide"/>
+                <!-- delay_status field is needed for decoration but should not be shown -->
+                <field name="delay_status" invisible="1"/>
             </field>
 
         </field>

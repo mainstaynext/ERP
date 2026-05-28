@@ -1,6 +1,7 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError, AccessError
-
+from datetime import date
+from markupsafe import Markup
 
 class ProjectTask(models.Model):
     _inherit = 'project.task'
@@ -23,6 +24,73 @@ class ProjectTask(models.Model):
     submission_document_link = fields.Char('Supporting Document (SharePoint Link)', readonly=True)
     submitted_by = fields.Many2one('res.users', string='Submitted By', readonly=True)
     submitted_on = fields.Datetime('Submitted On', readonly=True)
+
+    # ----- Planned start/end dates -----
+    planned_start_date = fields.Date(string='Start Date')
+    planned_end_date = fields.Date(string='End Date')
+
+    # ----- Actual start/end dates -----
+    actual_start_date = fields.Date(string='Actual Start Date')
+    actual_end_date = fields.Date(string='Actual End Date')
+
+    # ----- Other Custom Fields -----
+    owner = fields.Char(string='Owner')
+    module_name = fields.Many2one(
+        'project.task.module',
+        string='Module',
+    )
+    deliverables = fields.Char(string='Deliverables')
+    client_responsibilities = fields.Char(string='Client Responsibilities')
+
+    # ----- Delay Status Field -----
+    delay_status = fields.Selection(
+        selection=[
+            ('on_time', 'On Time'),
+            ('delayed', 'Delayed'),
+        ],
+        string='Delay Status',
+        compute='_compute_delay_status',
+        store=True,  # stored for fast search/filter
+    )
+
+    @api.depends('planned_start_date', 'planned_end_date',
+                 'actual_start_date', 'actual_end_date',
+                 'state', 'subtask_stage_id')
+    def _compute_delay_status(self):
+        today = date.today()
+        for task in self:
+            status = 'on_time'
+
+            # Case: Subtask stage is 'On Hold' → Delayed
+            if task.subtask_stage_id and task.subtask_stage_id.name == 'On-Hold':
+                status = 'delayed'
+
+            # Case: Task completed
+            elif task.state == '1_done':
+                if task.planned_end_date and task.actual_end_date:
+                    if task.planned_end_date >= task.actual_end_date:
+                        status = 'on_time'
+                    else:
+                        status = 'delayed'
+                else:
+                    status = 'on_time'
+
+            # Case: Task not completed
+            else:
+                # 1. Planned start date in future → on time
+                if task.planned_start_date and task.planned_start_date > today:
+                    status = 'on_time'
+                # 2. Actual start date is later than planned start → delayed
+                elif (task.planned_start_date and task.actual_start_date and
+                      task.actual_start_date > task.planned_start_date):
+                    status = 'delayed'
+                # 3. Planned end date already passed → delayed
+                elif task.planned_end_date and task.planned_end_date < today:
+                    status = 'delayed'
+                else:
+                    status = 'on_time'
+
+            task.delay_status = status
 
     @api.depends('parent_id')
     def _compute_allowed_subtask_stage_ids(self):
@@ -48,6 +116,11 @@ class ProjectTask(models.Model):
         self.ensure_one()
         if not self.parent_id:
             raise UserError(_("Only subtasks can be submitted for completion."))
+        if self.subtask_stage_id.name != 'In Progress':
+            raise UserError(_(
+                "Only subtasks in 'In Progress' stage can be submitted "
+                "for completion."
+            ))
         if self.subtask_stage_id.name == 'Submit for Completion':
             raise UserError(_("This subtask is already waiting for approval."))
         if self.subtask_stage_id.name == 'Completed':
@@ -71,14 +144,33 @@ class ProjectTask(models.Model):
         )
         if not completed_stage:
             raise UserError(_("Completed stage not found."))
-        # Use super() directly to set both fields cleanly without triggering
-        # our write() state-mapping logic again
+
+        # Mark subtask as complete and stamp actual end date
         super(ProjectTask, self).write({
             'subtask_stage_id': completed_stage.id,
             'state': '1_done',
-            'actual_end_date': fields.Date.today(),  # Auto-set on approval Actual Date
+            'actual_end_date': fields.Date.today(),
         })
-        # After approving, sync parent state and project status
+
+        employee = self.submitted_by  # res.users
+        employee_partner = employee.partner_id
+
+        self.message_post(
+            body=Markup("""
+                <b>Subtask Approved</b><br/>
+                Approved By: %s<br/><br/>
+                @%s Your submission has been approved.
+            """) % (
+                self.env.user.name,
+                employee.name,
+            ),
+            partner_ids=[employee_partner.id],  # notify employee,
+            subtype_xmlid='mail.mt_comment',
+            message_type='notification',
+
+        )
+
+        # Sync parent state & actual dates up the hierarchy chain
         self._sync_parent_state()
         self._sync_project_status()
         return True
@@ -94,36 +186,40 @@ class ProjectTask(models.Model):
         )
         if not in_progress_stage:
             raise UserError(_("In Progress stage not found."))
-        # Reset back to in progress
+
+        # Reset back to in progress and wipe subtask actual end date
         super(ProjectTask, self).write({
             'subtask_stage_id': in_progress_stage.id,
             'state': '01_in_progress',
-            'actual_end_date': False,  # Clear end date on rejection Actual date
+            'actual_end_date': False,
         })
-        # Sync parent state and project status after rejection
+
+        employee = self.submitted_by  # res.users
+        employee_partner = employee.partner_id
+
+        self.message_post(
+            body=Markup("""
+                <b>Subtask Rejected</b><br/>
+                Rejected By: %s<br/><br/>
+                @%s Your submission was rejected.
+                Please update work and resubmit.
+            """) % (
+                self.env.user.name,
+                employee.name,
+            ),
+            partner_ids=[employee_partner.id],  # notify employee,
+            subtype_xmlid='mail.mt_comment',
+            message_type='notification',
+        )
+
+        # Sync parent state (will handle parent actual end date removal dynamically)
         self._sync_parent_state()
         self._sync_project_status()
         return True
 
-    # ----- Planned start/end dates -----
-    planned_start_date = fields.Date(string='Start Date')
-    planned_end_date = fields.Date(string='End Date')
-
-    # ----- Actual start/end dates -----
-    actual_start_date = fields.Date(string='Actual Start Date')
-    actual_end_date = fields.Date(string='Actual End Date')
-
-    owner = fields.Char(string='Owner')
-    module_name = fields.Many2one(
-        'project.task.module',
-        string='Module',
-    )
-    deliverables = fields.Char(string='Deliverables')
-    client_responsibilities = fields.Char(string='Client Responsibilities')
-
     def _update_parent_dates(self):
         """
-        Recursively update parent task's start/end dates based on ALL children.
+        Recursively update parent task's planned start/end dates based on ALL children.
         Then propagate upward until there is no more parent.
         Finally update the project dates.
         """
@@ -181,9 +277,10 @@ class ProjectTask(models.Model):
 
     def _sync_parent_state(self):
         """
-        Sync parent task state based on its subtasks:
-        - If ALL subtasks are '1_done' → parent state = '1_done'
-        - If ANY subtask is '01_in_progress' → parent state = '01_in_progress'
+        Sync parent task state, actual start date, and actual end date based on its subtasks:
+        - Parent actual_start_date = min(subtask actual_start_dates) if any subtask has started
+        - If ALL subtasks are '1_done' → parent state = '1_done', parent actual_end_date = max(subtask actual_end_dates)
+        - If ANY subtask is '01_in_progress' → parent state = '01_in_progress', parent actual_end_date = False
         Then recurse up the hierarchy.
         """
         for task in self:
@@ -199,14 +296,29 @@ class ProjectTask(models.Model):
                 continue
 
             all_done = all(st.state == '1_done' for st in all_subtasks)
-            any_in_progress = any(
-                st.state == '01_in_progress' for st in all_subtasks
-            )
+            any_in_progress = any(st.state == '01_in_progress' for st in all_subtasks)
 
+            parent_vals = {}
+
+            # ----- Handle Actual Start Date Propagation -----
+            start_dates = all_subtasks.filtered('actual_start_date').mapped('actual_start_date')
+            if start_dates:
+                earliest_start = min(start_dates)
+                if parent.actual_start_date != earliest_start:
+                    parent_vals['actual_start_date'] = earliest_start
+
+            # ----- Handle State & Actual End Date Propagation -----
             if all_done:
-                super(ProjectTask, parent).write({'state': '1_done'})
+                parent_vals['state'] = '1_done'
+                end_dates = all_subtasks.filtered('actual_end_date').mapped('actual_end_date')
+                parent_vals['actual_end_date'] = max(end_dates) if end_dates else fields.Date.today()
             elif any_in_progress:
-                super(ProjectTask, parent).write({'state': '01_in_progress'})
+                parent_vals['state'] = '01_in_progress'
+                parent_vals['actual_end_date'] = False  # Incomplete if any subtask is reopened
+
+            # Write properties back inside a single execution payload
+            if parent_vals:
+                super(ProjectTask, parent).write(parent_vals)
 
             # Recurse up if parent also has a parent
             if parent.parent_id:
@@ -217,7 +329,6 @@ class ProjectTask(models.Model):
         Sync the project's last_update_status based on task states:
         - If ALL top-level tasks are '1_done' → project status = 'done'
         - Otherwise → project status = 'on_track'
-        Valid values: 'on_track', 'at_risk', 'off_track', 'on_hold', 'done'
         """
         projects = self.mapped('project_id').filtered(lambda p: p.id)
         for project in projects:
@@ -236,6 +347,26 @@ class ProjectTask(models.Model):
             else:
                 project.write({'last_update_status': 'on_track'})
 
+    def _sync_parent_assignees(self):
+        """
+        Sync parent task assignees with subtasks.
+        - New subtask inherits parent's assignees
+        - Existing subtasks update when parent assignee changes
+        """
+        for task in self:
+            if task.parent_id:
+                task.user_ids = [(6, 0, task.parent_id.user_ids.ids)]
+
+    def _sync_parent_assignees_from_subtasks(self):
+        for task in self.filtered('parent_id'):
+            parent = task.parent_id
+
+            all_users = parent.child_ids.mapped('user_ids')
+
+            parent.write({
+                'user_ids': [(6, 0, all_users.ids)]
+            })
+
     def _check_consultant_access(self):
         """
         Prevent consultants from editing tasks not assigned to them.
@@ -244,13 +375,10 @@ class ProjectTask(models.Model):
         - The task is a parent task that has subtasks assigned to them
         """
         if self.env.user.has_group(
-                'project_subtask_enhancement_i.group_project_consultant'
+                'project_mainstaypeopleconsulting.group_project_consultant'
         ):
             for task in self:
-                # Check direct assignment
                 directly_assigned = self.env.user in task.user_ids
-
-                # Check if this is a parent task with subtasks assigned to them
                 has_assigned_subtask = self.env.user in task.child_ids.mapped('user_ids')
 
                 if not directly_assigned and not has_assigned_subtask:
@@ -259,34 +387,50 @@ class ProjectTask(models.Model):
                         "assigned to you. Task '%s' is not assigned to you."
                     ) % task.name)
 
+    @api.model
+    def _default_subtask_stage(self):
+        parent_id = self.env.context.get('default_parent_id')
+        if parent_id:
+            stage = self.env['project.subtask.stage'].search(
+                [('name', '=', 'Yet to Start')],
+                limit=1
+            )
+            return stage.id
+        return False
+
     @api.model_create_multi
     def create(self, vals_list):
-        # Consultants cannot create tasks
-        if self.env.user.has_group(
-            'project_subtask_enhancement_i.group_project_consultant'
-        ):
-            raise AccessError(_(
-                "Project Consultants are not allowed to create tasks."
-            ))
+
+        yet_to_start = self.env['project.subtask.stage'].search(
+            [('name', '=', 'Yet to Start')],
+            limit=1
+        )
+        for vals in vals_list:
+            # only for subtasks
+            if vals.get('parent_id') and not vals.get('subtask_stage_id'):
+                vals['subtask_stage_id'] = yet_to_start.id
+            if self.env.user.has_group(
+                    'project_mainstaypeopleconsulting.group_project_consultant'
+            ):
+                raise AccessError(_("Project Consultants are not allowed to create tasks."))
 
         tasks = super().create(vals_list)
 
         subtasks = tasks.filtered('parent_id')
         if subtasks:
+            subtasks._sync_parent_assignees()
+            subtasks._sync_parent_assignees_from_subtasks()
             for subtask in subtasks:
                 subtask._update_parent_dates()
-            # Sync parent state and project status on new subtask creation
             subtasks._sync_parent_state()
             subtasks._sync_project_status()
         else:
             tasks._update_project_dates()
-            # Sync project status when top-level task is created
             tasks._sync_project_status()
 
         return tasks
 
     def write(self, vals):
-        # Consultant access restriction — checked before anything else
         self._check_consultant_access()
 
         if 'subtask_stage_id' in vals:
@@ -303,14 +447,19 @@ class ProjectTask(models.Model):
             if 'state' not in vals:
                 if new_stage.name == 'Completed':
                     vals['state'] = '1_done'
-                else:
-                    # Covers: In Progress, Submit for Completion, any other stage
+
+                elif new_stage.name == 'In Progress':
+                    vals['state'] = '01_in_progress'
+
+                elif new_stage.name == 'Yet to Start':
+                    pass  # keep current state
+
+                elif new_stage.name == 'Submit for Completion':
                     vals['state'] = '01_in_progress'
 
             # Auto-set actual start date when stage → In Progress
             if new_stage.name == 'In Progress':
                 for task in self:
-                    # Only set if not already set
                     if not task.actual_start_date:
                         vals['actual_start_date'] = fields.Date.today()
 
@@ -333,7 +482,51 @@ class ProjectTask(models.Model):
 
         res = super().write(vals)
 
-        # After state change, sync parent task state and project status
+        # -------------------------
+        # Parent -> Child
+        # -------------------------
+        if (
+                'user_ids' in vals
+                and not self.env.context.get('skip_assignee_sync')
+        ):
+
+            parent_tasks = self.filtered(
+                lambda t: not t.parent_id
+            )
+
+            for parent in parent_tasks:
+
+                children = parent.child_ids.filtered(
+                    lambda c:
+                    set(c.user_ids.ids)
+                    != set(parent.user_ids.ids)
+                )
+
+                if children:
+                    children.with_context(
+                        skip_assignee_sync=True
+                    ).write({
+                        'user_ids': [(6, 0, parent.user_ids.ids)]
+                    })
+
+        # -------------------------
+        # Child -> Parent
+        # -------------------------
+        if (
+                'user_ids' in vals
+                and not self.env.context.get('skip_assignee_sync')
+        ):
+            self.filtered(
+                'parent_id'
+            )._sync_parent_assignees_from_subtasks()
+
+        # Parent changed
+        if 'parent_id' in vals:
+            self.filtered(
+                'parent_id'
+            )._sync_parent_assignees()
+
+        # Existing logic
         if 'state' in vals or 'subtask_stage_id' in vals:
             self._sync_parent_state()
             self._sync_project_status()
@@ -380,7 +573,7 @@ class ProjectTask(models.Model):
         to tasks assigned to them at the ORM level.
         """
         if self.env.user.has_group(
-                'project_subtask_enhancement_i.group_project_consultant'
+                'project_mainstaypeopleconsulting.group_project_consultant'
         ):
             domain = list(domain) + [('user_ids', 'in', [self.env.uid])]
         return super()._search(domain, offset=offset, limit=limit, order=order, **kwargs)
