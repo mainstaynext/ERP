@@ -42,6 +42,18 @@ class ProjectTask(models.Model):
     deliverables = fields.Char(string='Deliverables')
     client_responsibilities = fields.Char(string='Client Responsibilities')
 
+    # ----- Consultant readonly helper -----
+    is_project_consultant = fields.Boolean(
+        compute='_compute_is_project_consultant',
+    )
+
+    def _compute_is_project_consultant(self):
+        is_consultant = self.env.user.has_group(
+            'project_mainstaypeopleconsulting.group_project_consultant'
+        )
+        for task in self:
+            task.is_project_consultant = is_consultant
+
     # ----- Delay Status Field -----
     delay_status = fields.Selection(
         selection=[
@@ -51,6 +63,12 @@ class ProjectTask(models.Model):
         string='Delay Status',
         compute='_compute_delay_status',
         store=True,  # stored for fast search/filter
+    )
+    # ----- Delay Duration -----
+    delay_days = fields.Integer(
+        string='Delay (Days)',
+        compute='_compute_delay_days',
+        store=True,
     )
 
     @api.depends('planned_start_date', 'planned_end_date',
@@ -91,6 +109,62 @@ class ProjectTask(models.Model):
                     status = 'on_time'
 
             task.delay_status = status
+
+    @api.depends(
+        'planned_start_date',
+        'planned_end_date',
+        'actual_start_date',
+        'actual_end_date',
+        'state',
+        'subtask_stage_id'
+    )
+    def _compute_delay_days(self):
+        today = date.today()
+
+        for task in self:
+            delay = 0
+
+            # On Hold → calculate from planned end date till today
+            if (
+                    task.subtask_stage_id
+                    and task.subtask_stage_id.name == 'On-Hold'
+                    and task.planned_end_date
+                    and today > task.planned_end_date
+            ):
+                delay = (today - task.planned_end_date).days
+
+            # Completed tasks
+            elif task.state == '1_done':
+                if task.planned_end_date and task.actual_end_date:
+                    if task.actual_end_date > task.planned_end_date:
+                        delay = (
+                                task.actual_end_date
+                                - task.planned_end_date
+                        ).days
+
+            # Incomplete tasks
+            else:
+                # Late start
+                if (
+                        task.planned_start_date
+                        and task.actual_start_date
+                        and task.actual_start_date > task.planned_start_date
+                ):
+                    delay = (
+                            task.actual_start_date
+                            - task.planned_start_date
+                    ).days
+
+                # Planned end date crossed
+                elif (
+                        task.planned_end_date
+                        and today > task.planned_end_date
+                ):
+                    delay = (
+                            today - task.planned_end_date
+                    ).days
+
+            task.delay_days = delay
 
     @api.depends('parent_id')
     def _compute_allowed_subtask_stage_ids(self):
@@ -181,41 +255,21 @@ class ProjectTask(models.Model):
             raise AccessError(_("Only managers can reject completion."))
         if self.subtask_stage_id.name != 'Submit for Completion':
             raise UserError(_("Only submitted subtasks can be rejected."))
-        in_progress_stage = self.env['project.subtask.stage'].search(
-            [('name', '=', 'In Progress')], limit=1
-        )
-        if not in_progress_stage:
-            raise UserError(_("In Progress stage not found."))
-
-        # Reset back to in progress and wipe subtask actual end date
-        super(ProjectTask, self).write({
-            'subtask_stage_id': in_progress_stage.id,
-            'state': '01_in_progress',
-            'actual_end_date': False,
-        })
-
-        employee = self.submitted_by  # res.users
-        employee_partner = employee.partner_id
-
-        self.message_post(
-            body=Markup("""
-                <b>Subtask Rejected</b><br/>
-                Rejected By: %s<br/><br/>
-                @%s Your submission was rejected.
-                Please update work and resubmit.
-            """) % (
-                self.env.user.name,
-                employee.name,
-            ),
-            partner_ids=[employee_partner.id],  # notify employee,
-            subtype_xmlid='mail.mt_comment',
-            message_type='notification',
-        )
 
         # Sync parent state (will handle parent actual end date removal dynamically)
-        self._sync_parent_state()
-        self._sync_project_status()
-        return True
+        # self._sync_parent_state()
+        # self._sync_project_status()
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Reject Subtask'),
+            'res_model': 'subtask.reject.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_task_id': self.id,
+            }
+        }
 
     def _update_parent_dates(self):
         """
@@ -482,9 +536,7 @@ class ProjectTask(models.Model):
 
         res = super().write(vals)
 
-        # -------------------------
         # Parent -> Child
-        # -------------------------
         if (
                 'user_ids' in vals
                 and not self.env.context.get('skip_assignee_sync')
@@ -509,9 +561,7 @@ class ProjectTask(models.Model):
                         'user_ids': [(6, 0, parent.user_ids.ids)]
                     })
 
-        # -------------------------
         # Child -> Parent
-        # -------------------------
         if (
                 'user_ids' in vals
                 and not self.env.context.get('skip_assignee_sync')

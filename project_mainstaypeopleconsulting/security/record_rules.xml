@@ -1,29 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        Override the inherited group_project_user rules for consultants.
-        We deactivate the broad visibility rule and replace it with
-        a strict "assigned only" rule.
-    -->
-
-    <!-- Disable the broad task visibility rule for consultants -->
-    <record id="project.task_visibility_rule_project_user" model="ir.rule">
-        <field name="groups" eval="[]"/>
-    </record>
-
-    <!-- Disable the private task rule for consultants (we replace it) -->
-    <record id="project.ir_rule_private_task" model="ir.rule">
-        <field name="groups" eval="[]"/>
-    </record>
-
-    <!--
-        Consultant strict rule: ONLY tasks assigned to them.
-    -->
-    <record id="rule_consultant_task_read" model="ir.rule">
-        <field name="name">Project Consultant: See Assigned Tasks Only</field>
+    <!--Project Consultant: can only READ/WRITE tasks assigned to them.
+        We do NOT touch Odoo's built-in rules — they still apply to PM and EM.-->
+    <record id="rule_consultant_task_assigned" model="ir.rule">
+        <field name="name">Project Consultant: Assigned Tasks Only</field>
         <field name="model_id" ref="project.model_project_task"/>
-        <field name="groups" eval="[(4, ref('group_project_consultant'))]"/>
+        <field name="groups" eval="[(4, ref('project_mainstaypeopleconsulting.group_project_consultant'))]"/>
         <field name="domain_force">
             [('user_ids', 'in', [user.id])]
         </field>
@@ -33,11 +16,11 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <!-- Consultant: only see projects where they have assigned tasks -->
-    <record id="rule_consultant_project_read" model="ir.rule">
-        <field name="name">Project Consultant: See Relevant Projects Only</field>
+    <!--Project Consultant: can only see projects where they have at least one assigned task.-->
+    <record id="rule_consultant_project_assigned" model="ir.rule">
+        <field name="name">Project Consultant: Relevant Projects Only</field>
         <field name="model_id" ref="project.model_project_project"/>
-        <field name="groups" eval="[(4, ref('group_project_consultant'))]"/>
+        <field name="groups" eval="[(4, ref('project_mainstaypeopleconsulting.group_project_consultant'))]"/>
         <field name="domain_force">
             [('task_ids.user_ids', 'in', [user.id])]
         </field>
@@ -46,5 +29,4 @@
         <field name="perm_create" eval="False"/>
         <field name="perm_unlink" eval="False"/>
     </record>
-
 </odoo>

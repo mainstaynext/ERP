@@ -25,21 +25,28 @@
             <!-- Insert planned dates before deadline -->
             <xpath expr="//field[@name='date_deadline']" position="before">
                 <group name="subtask_dates" string="Dates">
-                    <field name="planned_start_date" string="Planned Start Date"/>
-                    <field name="planned_end_date" string="Planned End Date"/>
+                    <field name="planned_start_date" string="Planned Start Date"
+                           readonly="is_project_consultant"/>
+                    <field name="planned_end_date" string="Planned End Date"
+                           readonly="is_project_consultant"/>
                 </group>
             </xpath>
 
             <!-- Actual Start and End Dates -->
             <xpath expr="//field[@name='planned_end_date']" position="after">
-                <field name="actual_start_date" string="Actual Start Date"/>
-                <field name="actual_end_date" string="Actual End Date"/>
+                <field name="actual_start_date" string="Actual Start Date"
+                       readonly="is_project_consultant"/>
+                <field name="actual_end_date" string="Actual End Date"
+                       readonly="is_project_consultant"/>
+                <field name="delay_status" readonly="1"/>
+                <field name="delay_days" readonly="1"/>
             </xpath>
 
             <!-- Subtask Stage as styled status-bar-like button dropdown -->
             <xpath expr="//field[@name='stage_id']" position="after">
 
                 <field name="allowed_subtask_stage_ids" invisible="1"/>
+                <field name="is_project_consultant" invisible="1"/>
 
                 <!-- Hidden field for data binding -->
                 <field name="subtask_stage_id" invisible="1"
@@ -73,7 +80,6 @@
                                       box-shadow: 0 2px 6px rgba(0,0,0,0.2);"/>
                     </div>
                 </div>
-
             </xpath>
 
             <!-- Buttons -->
@@ -134,12 +140,10 @@
                     </group>
                 </page>
             </xpath>
-
         </field>
     </record>
 
     <!-- List view -->
-        <!-- List view -->
     <record id="view_project_task_list_inherit_subtask" model="ir.ui.view">
         <field name="name">project.task.list.inherit.subtask</field>
         <field name="model">project.task</field>
@@ -158,10 +162,16 @@
             <field name="stage_id" position="after">
                 <field name="subtask_stage_id" string="Subtask Stage" optional="show"/>
                 <field name="module_name" string="Module" optional="show"/>
-                <field name="planned_start_date" string="Planned Start Date" optional="show"/>
-                <field name="planned_end_date" string="Planned End Date" optional="show"/>
-                <field name="actual_start_date" string="Actual Start Date" optional="show"/>
-                <field name="actual_end_date" string="Actual End Date" optional="show"/>
+                <field name="planned_start_date" string="Planned Start Date" optional="show"
+                       readonly="is_project_consultant"/>
+                <field name="planned_end_date" string="Planned End Date" optional="show"
+                       readonly="is_project_consultant"/>
+                <field name="actual_start_date" string="Actual Start Date" optional="show"
+                       readonly="is_project_consultant"/>
+                <field name="actual_end_date" string="Actual End Date" optional="show"
+                       readonly="is_project_consultant"/>
+                <field name="delay_days" string="Delay (Days)" optional="show"/>
+                <field name="delay_status" string="Delay Status" optional="show"/>
                 <field name="submitted_by" string="Submitted By" optional="hide"/>
                 <!-- delay_status field is needed for decoration but should not be shown -->
                 <field name="delay_status" invisible="1"/>

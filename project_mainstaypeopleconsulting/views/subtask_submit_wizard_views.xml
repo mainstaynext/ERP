@@ -1,21 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Submit Wizard -->
     <record id="view_subtask_submit_wizard_form" model="ir.ui.view">
         <field name="name">subtask.submit.wizard.form</field>
         <field name="model">subtask.submit.wizard</field>
         <field name="arch" type="xml">
-            <form>
+            <form string="Submit Subtask">
                 <sheet>
                     <group>
                         <field name="task_id" readonly="1"/>
-                        <field name="comment" required="1" placeholder="Enter your completion comments..."/>
-                        <field name="supporting_link" required="1" placeholder="https://yourcompany.sharepoint.com/..."/>
+                        <field name="comment"
+                               required="1"
+                               placeholder="Enter your completion comments..."/>
+                        <field name="supporting_link"
+                               required="1"
+                               placeholder="https://yourcompany.sharepoint.com/..."/>
                     </group>
                     <footer>
-                        <button name="action_submit" string="Submit for Approval" type="object" class="btn-primary"/>
-                        <button string="Cancel" class="btn-default" special="cancel"/>
+                        <button name="action_submit"
+                                string="Submit for Approval"
+                                type="object"
+                                class="btn-primary"/>
+
+                        <button string="Cancel"
+                                special="cancel"
+                                class="btn-secondary"/>
                     </footer>
                 </sheet>
+            </form>
+        </field>
+    </record>
+    <!-- Reject Wizard -->
+    <record id="view_subtask_reject_wizard_form" model="ir.ui.view">
+        <field name="name">subtask.reject.wizard.form</field>
+        <field name="model">subtask.reject.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reject Subtask">
+                <group>
+                    <field name="rejection_reason"
+                           placeholder="Enter rejection reason..."/>
+                </group>
+                <footer>
+                    <button name="action_confirm_reject"
+                            type="object"
+                            string="Reject"
+                            class="btn-danger"/>
+
+                    <button string="Cancel"
+                            special="cancel"
+                            class="btn-secondary"/>
+                </footer>
             </form>
         </field>
     </record>

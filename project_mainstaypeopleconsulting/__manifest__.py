@@ -6,7 +6,7 @@
     'description': """
         Custom subtask stages with employee submission and manager approval.
     """,
-    'author': 'Shivang',
+    'author': 'Shivang Patel',
     'depends': ['project'],
     'data': [
         'security/security.xml',

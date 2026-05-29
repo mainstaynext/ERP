@@ -9,3 +9,4 @@ access_project_engagement_manager,project.project engagement manager,project.mod
 access_project_manager_custom,project.project manager custom,project.model_project_project,project_mainstaypeopleconsulting.group_project_manager_custom,1,1,1,1
 access_project_consultant,project.project consultant,project.model_project_project,project_mainstaypeopleconsulting.group_project_consultant,1,0,0,0
 access_project_task_module,project.task.module,model_project_task_module,base.group_user,1,1,1,1
+access_subtask_reject_wizard_manager,subtask.reject.wizard.manager,model_subtask_reject_wizard,project.group_project_manager,1,1,1,1
