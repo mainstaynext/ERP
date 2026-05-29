@@ -173,8 +173,6 @@
                 <field name="delay_days" string="Delay (Days)" optional="show"/>
                 <field name="delay_status" string="Delay Status" optional="show"/>
                 <field name="submitted_by" string="Submitted By" optional="hide"/>
-                <!-- delay_status field is needed for decoration but should not be shown -->
-                <field name="delay_status" invisible="1"/>
             </field>
 
         </field>
